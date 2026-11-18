@@ -202,10 +202,15 @@ jobs:
           PR_NUMBER: ${{ needs.capture.outputs.pr_number }}
           PR_URL: ${{ needs.capture.outputs.pr_url }}
           COMMENT_ID: ${{ needs.capture.outputs.comment_id }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test -s review.md
           printf '\nReviewed PR: %s\n' "$PR_URL" >> review.md
+
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --body-file review.md
+
           curl --fail --silent --show-error --request POST \
             --header "Authorization: Bearer $GITHUB_TOKEN" \
             --header "Accept: application/vnd.github+json" \
