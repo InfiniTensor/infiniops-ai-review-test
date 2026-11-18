@@ -91,6 +91,14 @@ INFINIPLAN_MODEL
 
 The exact value depends on the models exposed by InfiniPlan. The endpoint must implement the OpenAI-compatible Responses API; a Chat Completions-only endpoint is not sufficient for Codex. These values may be repository variables, or masked secrets if the endpoint/model configuration is private.
 
+Optionally add a repository variable named:
+
+```text
+INFINIPLAN_EFFORT
+```
+
+to configure Codex reasoning effort. For broad compatibility, use one of `none`, `minimal`, `low`, `medium`, `high`, or `xhigh`; the selected model and InfiniPlan endpoint must also support the value. Leave the variable unset to use the workflow default, `high`.
+
 ### 4. Workflow permissions
 
 If an organization policy caps the `GITHUB_TOKEN` at read-only access and prevents job-level write grants, grant this workflow permission to write pull-request and issue comments. The repository-wide default can otherwise remain read-only.

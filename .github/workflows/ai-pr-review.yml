@@ -192,7 +192,7 @@ jobs:
           prompt-file: scripts/ai_pr_review/prompt.md
           output-file: review.md
           safety-strategy: drop-sudo
-          effort: high
+          effort: ${{ vars.INFINIPLAN_EFFORT || 'high' }}
 
       - name: Publish review comment
         env:
@@ -203,7 +203,6 @@ jobs:
         run: |
           set -euo pipefail
           test -s review.md
-          printf '\nReviewed PR: %s\n' "$PR_URL" >> review.md
           printf '\nReviewed PR: %s\n' "$PR_URL" >> review.md
           curl --fail --silent --show-error --request POST \
             --header "Authorization: Bearer $GITHUB_TOKEN" \
