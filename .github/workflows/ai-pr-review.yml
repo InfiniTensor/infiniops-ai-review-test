@@ -70,6 +70,8 @@ jobs:
             exit 1
           fi
 
+          echo "authorized=true" >> "$GITHUB_OUTPUT"
+
       - name: Add in-progress reaction
         env:
           GITHUB_TOKEN: ${{ github.token }}

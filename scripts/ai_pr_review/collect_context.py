@@ -80,7 +80,7 @@ def _request(config: Config, path: str, *, params: dict[str, Any] | None = None)
 def _paginated(config: Config, path: str, *, key: str | None = None) -> Iterator[Any]:
     page = 1
     while True:
-        payload = _request(config, path, {"per_page": MAX_PER_PAGE, "page": page})
+        payload = _request(config, path, params={"per_page": MAX_PER_PAGE, "page": page})
         items = payload.get(key, []) if key else payload
         if not isinstance(items, list):
             raise ApiError(
