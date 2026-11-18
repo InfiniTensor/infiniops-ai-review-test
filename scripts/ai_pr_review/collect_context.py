@@ -70,9 +70,9 @@ def _request(config: Config, path: str, *, params: dict[str, Any] | None = None)
             message = str(payload.get("message") or error.reason)
         except Exception:
             message = str(error.reason)
-        raise ApiError(error.code, message) from error
+        raise ApiError(error.code, f"{message} (path={path})") from error
     except URLError as error:
-        raise ApiError(None, str(error.reason)) from error
+        raise ApiError(None, f"{error.reason} (path={path})") from error
     except json.JSONDecodeError as error:
         raise ApiError(None, f"invalid JSON response: {error}") from error
 
