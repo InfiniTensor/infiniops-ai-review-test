@@ -171,8 +171,19 @@ def _collect(config: Config) -> dict[str, Any]:
         if team.get("slug") is not None
     ]
 
-    branch_protection_url = f"repos/{config.repo_slug}/branches/{quote(str(base.get('ref') or ''), safe='/')}/protection"
-    branch_protection = _request(config, branch_protection_url)
+    branch_protection_url = (
+        f"repos/{config.repo_slug}/branches/"
+        f"{quote(str(base.get('ref') or ''), safe='/')}/protection"
+    )
+    try:
+        branch_protection = _request(config, branch_protection_url)
+    except ApiError as error:
+        # Branch-protection reads require repository administration access.
+        # The workflow token only needs pull-request context, so report no
+        # required-check names rather than making the whole review unavailable.
+        if error.status != 403:
+            raise
+        branch_protection = {}
     required_checks = branch_protection.get("required_status_checks", {}).get(
         "contexts", []
     )
