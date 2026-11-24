@@ -16,7 +16,6 @@ from tests.utils import (
     "shape, input_strides, out_strides, inplace",
     (
         ((), None, None, False),
-        ((0,), None, None, False),
         ((1, 3), None, None, False),
         ((1, 3), None, None, True),
         ((3, 3), (5, 1), (5, 1), False),

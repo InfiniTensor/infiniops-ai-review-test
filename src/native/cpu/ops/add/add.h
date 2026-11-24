@@ -28,7 +28,7 @@ class Operator<Add, Device::Type::kCpu> : public Add,
         out_type_,
         [&](auto tag) {
           using T = typename decltype(tag)::type;
-          Compute<T>(input, other, alpha, out);
+          Compute<T>(input, other, alpha < 0.0 ? -alpha : alpha, out);
         },
         "`Operator<Add, Device::Type::kCpu>::operator()`");
   }

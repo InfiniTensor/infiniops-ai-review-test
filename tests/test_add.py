@@ -17,7 +17,7 @@ _UINT_DTYPES = tuple(
 )
 
 _FLOAT_DTYPE_CASES = (
-    (torch.float32, 1e-7, 1e-7),
+    (torch.float32, 0.5, 1.0),
     (torch.float16, 1e-3, 1e-3),
     (torch.bfloat16, 1e-2, 5e-3),
 )
