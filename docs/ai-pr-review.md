@@ -22,8 +22,8 @@ For every invocation, the workflow:
 2. Collects PR metadata, changed files, the diff, commits, issue comments, review comments, reviews, and check summaries through the GitHub REST API.
 3. Stores an immutable context artifact and records the PR head SHA observed at trigger time.
 4. Runs a read-only Codex review using the trusted review policy from the repository default branch and `REVIEW.md`.
-5. Posts **Blocking findings**, **Non-blocking findings**, and **Evidence gaps** as a PR comment.
-6. Changes the triggering comment's reaction to `rocket` after successfully publishing the review.
+5. Submits a GitHub review with inline comments on validated changed lines. The review body includes the overall findings, evidence gaps, and any findings without a valid line anchor.
+6. Adds a rocket reaction after successfully publishing the review. It skips publication when the PR head or base changes during the run.
 
 If the workflow itself fails, it posts an infrastructure-failure comment. That failure is not a code-review conclusion.
 
@@ -119,25 +119,13 @@ pull-requests: write
 issues: write
 ```
 
-for publishing the review comment.
+for submitting the advisory review and adding a reaction.
 
-The setting **Allow GitHub Actions to create and approve pull requests** is not needed. The workflow only creates comments and reactions; it does not open or approve pull requests.
-
-## Temporary-branch testing limitation
-
-An `issue_comment` workflow is loaded from the repository default branch, not from the PR branch.
-
-Therefore, after putting this workflow on a temporary feature branch:
-
-- a comment of `/ai-pr-review` on that feature-branch PR normally does **not** run the new workflow version;
-- the slash command becomes available only after the workflow is merged into the default branch;
-- after merging, test it on an existing open PR.
-
-If needed, the temporary-branch PR can still validate Python formatting, workflow lint, YAML syntax, and the normal repository CI before merge.
+The setting **Allow GitHub Actions to create and approve pull requests** is not needed. The workflow submits advisory reviews with the COMMENT event and adds reactions.
 
 ## Security boundary
 
-- The workflow, collector, and prompt come from the trusted default branch.
+- The workflow, collector, publisher, prompt, and review policy come from the trusted default branch.
 - Pull-request text and code are treated as untrusted review data.
 - PR-controlled text is never interpolated into a shell command.
 - PR files are checked out separately under `pr-head/` for reading only.
@@ -148,8 +136,8 @@ If needed, the temporary-branch PR can still validate Python formatting, workflo
 
 ## Phase 1 limitations
 
-- Reviews are posted as one summary comment, not GitHub inline review comments.
+- Inline comments require a changed line in a complete GitHub diff hunk. Findings without an anchor appear in the review body.
 - New pushes do not automatically trigger another review; rerun the command when needed.
 - `--recheck` performs a full review of the current head. It does not yet remember human false-positive corrections.
 - REST API context cannot determine exact review-thread resolution; comments are provided as supporting context.
-- Inline findings, a false-positive feedback loop, and incremental re-reviews are planned for later phases.
+- A false-positive feedback loop and incremental re-reviews are planned for later phases.

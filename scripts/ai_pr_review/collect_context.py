@@ -34,6 +34,7 @@ class Config:
     output_dir: Path
     token: str | None
     api_root: str
+    expected_head_sha: str | None = None
 
     @property
     def repo_slug(self) -> str:
@@ -49,7 +50,13 @@ class ApiError(RuntimeError):
         return f"GitHub API error{f' (HTTP {self.status})' if self.status else ''}: {self.message}"
 
 
-def _request(config: Config, path: str, *, params: dict[str, Any] | None = None) -> Any:
+def _request(
+    config: Config,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
+) -> Any:
     url = f"{config.api_root}/{path.lstrip('/')}"
     if params:
         url = f"{url}?{urlencode(params, doseq=True)}"
@@ -60,14 +67,18 @@ def _request(config: Config, path: str, *, params: dict[str, Any] | None = None)
     }
     if config.token:
         headers["Authorization"] = f"Bearer {config.token}"
-    request = Request(url, headers=headers, method="GET")
+    data = None
+    if payload is not None:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    request = Request(url, data=data, headers=headers)
     try:
         with urlopen(request, timeout=30) as response:
             return json.load(response)
     except HTTPError as error:
         try:
-            payload = json.load(error)
-            message = str(payload.get("message") or error.reason)
+            response = json.load(error)
+            message = str(response.get("message") or error.reason)
         except Exception:
             message = str(error.reason)
         raise ApiError(error.code, f"{message} (path={path})") from error
@@ -80,7 +91,9 @@ def _request(config: Config, path: str, *, params: dict[str, Any] | None = None)
 def _paginated(config: Config, path: str, *, key: str | None = None) -> Iterator[Any]:
     page = 1
     while True:
-        payload = _request(config, path, params={"per_page": MAX_PER_PAGE, "page": page})
+        payload = _request(
+            config, path, params={"per_page": MAX_PER_PAGE, "page": page}
+        )
         items = payload.get(key, []) if key else payload
         if not isinstance(items, list):
             raise ApiError(
@@ -137,8 +150,20 @@ def _collect(config: Config) -> dict[str, Any]:
     if not _SHA_RE.fullmatch(head_sha):
         raise ApiError(None, f"PR head SHA is missing or invalid: {head_sha!r}")
 
+    if config.expected_head_sha is not None and config.expected_head_sha != head_sha:
+        raise ApiError(None, "PR head changed before context capture")
+
     files = list(_paginated(config, f"{pull_path}/files"))
     commits = list(_paginated(config, f"{pull_path}/commits"))
+    if config.expected_head_sha is not None:
+        current = _request(config, pull_path)
+        current_base = current.get("base") or {}
+        if (
+            (current.get("head") or {}).get("sha") != head_sha
+            or current_base.get("sha") != base.get("sha")
+            or current_base.get("ref") != base.get("ref")
+        ):
+            raise ApiError(None, "PR head or base changed during context capture")
     issue_comments = list(
         _paginated(
             config, f"repos/{config.repo_slug}/issues/{config.pr_number}/comments"
@@ -414,6 +439,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--owner", default=env_config.owner if env_config else None)
     parser.add_argument("--repo", default=env_config.repo if env_config else None)
+    parser.add_argument("--expected-head-sha")
     parser.add_argument(
         "--pr", type=int, default=env_config.pr_number if env_config else None
     )
@@ -432,7 +458,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("owner, repo, and pr are required (or run inside GitHub Actions)")
     if token == "":
         token = None
-    config = Config(args.owner, args.repo, args.pr, args.output, token, args.api_root)
+    config = Config(
+        args.owner,
+        args.repo,
+        args.pr,
+        args.output,
+        token,
+        args.api_root,
+        args.expected_head_sha,
+    )
 
     try:
         collect(config)

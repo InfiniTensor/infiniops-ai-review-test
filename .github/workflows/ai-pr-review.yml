@@ -41,7 +41,6 @@ jobs:
       (github.event.comment.body == '/ai-pr-review' || github.event.comment.body == '/ai-pr-review --recheck')
     outputs:
       pr_number: ${{ steps.pr.outputs.number }}
-      pr_url: ${{ steps.pr.outputs.url }}
       head_sha: ${{ steps.pr.outputs.head_sha }}
       authorized: ${{ steps.guard.outputs.authorized }}
       comment_id: ${{ github.event.comment.id }}
@@ -101,13 +100,11 @@ jobs:
               "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$ISSUE_NUMBER"
           )"
           number="$(printf '%s' "$response" | jq -e '.number')"
-          url="$(printf '%s' "$response" | jq -r -e '.html_url')"
           sha="$(printf '%s' "$response" | jq -r -e '.head.sha')"
           case "$number" in ''|*[!0-9]*) echo "::error::Invalid PR number"; exit 1;; esac
           case "$sha" in ''|*[!0-9A-Fa-f]*) echo "::error::Invalid head SHA"; exit 1;; esac
           {
             echo "number=$number"
-            echo "url=$url"
             echo "head_sha=$sha"
           } >> "$GITHUB_OUTPUT"
 
@@ -122,12 +119,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           OUTPUT_DIR: context
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
         run: |
           set -euo pipefail
           python "$GITHUB_WORKSPACE/scripts/ai_pr_review/collect_context.py" \
             --owner "${GITHUB_REPOSITORY%%/*}" \
             --repo "${GITHUB_REPOSITORY##*/}" \
             --pr "$PR_NUMBER" \
+            --expected-head-sha "$HEAD_SHA" \
             --output "$OUTPUT_DIR"
 
       - name: Store immutable snapshot
@@ -192,32 +191,22 @@ jobs:
           permission-profile: ":read-only"
           working-directory: ${{ github.workspace }}
           prompt-file: scripts/ai_pr_review/prompt.md
-          output-file: review.md
+          output-file: review.json
           safety-strategy: drop-sudo
           effort: ${{ vars.INFINIPLAN_EFFORT || 'high' }}
 
-      - name: Publish review comment
+      - name: Publish advisory review
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.capture.outputs.pr_number }}
-          PR_URL: ${{ needs.capture.outputs.pr_url }}
+          HEAD_SHA: ${{ needs.capture.outputs.head_sha }}
           COMMENT_ID: ${{ needs.capture.outputs.comment_id }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test -s review.md
-          printf '\nReviewed PR: %s\n' "$PR_URL" >> review.md
-
-          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
-            --body-file review.md
-
-          curl --fail --silent --show-error --request POST \
-            --header "Authorization: Bearer $GITHUB_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            --header "Content-Type: application/json" \
-            --data '{"content":"rocket"}' \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID/reactions"
+          python "$GITHUB_WORKSPACE/scripts/ai_pr_review/publish_review.py" \
+            --pr "$PR_NUMBER" \
+            --head-sha "$HEAD_SHA" \
+            --comment-id "$COMMENT_ID"
 
   report_failure:
     name: Report review failure
