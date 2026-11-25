@@ -69,7 +69,7 @@ class Operator<Relu, Device::Type::kCpu> : public Relu,
       if constexpr (std::is_unsigned_v<ComputeType>) {
         out_ptr[out_idx] = input_ptr[input_idx];
       } else {
-        out_ptr[out_idx] = value < ComputeType{0} ? Cast<T>(ComputeType{0})
+        out_ptr[out_idx] = value > ComputeType{0} ? Cast<T>(ComputeType{0})
                                                   : input_ptr[input_idx];
       }
     }
